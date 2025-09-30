@@ -12,6 +12,9 @@ yarn-error.log*
 .env.production.local
 .env.docker
 
+# Allow client/.env to be committed
+!client/.env
+
 # Build outputs
 build/
 dist/
