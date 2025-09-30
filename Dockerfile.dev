@@ -1,0 +1,23 @@
+# 開発用Dockerfile（サーバーサイドのみ、ホットリロード対応）
+FROM node:20-alpine
+
+# curlをインストール（ヘルスチェック用）
+RUN apk add --no-cache curl
+
+# 作業ディレクトリ設定
+WORKDIR /app
+
+# パッケージファイルをコピー
+COPY package*.json ./
+
+# 依存関係インストール（devDependenciesも含む）
+RUN npm install
+
+# 開発用に必要なグローバルパッケージ
+RUN npm install -g nodemon
+
+# ポート公開
+EXPOSE 54321
+
+# 開発サーバー起動
+CMD ["npm", "run", "server:dev"]

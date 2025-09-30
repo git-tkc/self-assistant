@@ -1,0 +1,57 @@
+services:
+  # My Personal Assistant アプリケーション（プロダクション）
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5001:54321"
+    environment:
+      - NODE_ENV=production
+      - PORT=54321
+    env_file:
+      - .env.docker
+    volumes:
+      # ログ永続化（オプション）
+      - app-logs:/app/logs
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:54321/api/tasks"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # 開発用サービス（開発時のみ使用）
+  app-dev:
+    profiles: ["dev"]
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "5002:54321"
+    environment:
+      - NODE_ENV=development
+      - PORT=54321
+    env_file:
+      - .env.docker
+    volumes:
+      # ホットリロード用
+      - ./server:/app/server
+      - ./package.json:/app/package.json
+    networks:
+      - app-network
+
+volumes:
+  app-logs:
+
+networks:
+  app-network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.28.0.0/16
+          gateway: 172.28.0.1
