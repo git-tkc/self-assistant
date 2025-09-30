@@ -73,30 +73,24 @@ class NotificationService {
     const safeTitle = this.sanitizeForPowerShell(title);
     const safeMessage = this.sanitizeForPowerShell(message);
 
-    // 動作確認済みのPowerShellコマンド（より確実）
-    const psScript = `
-try {
-    [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] > $null
-    $template = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02)
-    $template.GetElementsByTagName("text")[0].AppendChild($template.CreateTextNode("${safeTitle}")) > $null
-    $template.GetElementsByTagName("text")[1].AppendChild($template.CreateTextNode("${safeMessage}")) > $null
-    $toast = [Windows.UI.Notifications.ToastNotification]::new($template)
-    $notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("Personal Assistant")
-    $notifier.Show($toast)
-} catch {
-    # Toast失敗は無視（企業環境では正常）
-}
-`;
+    // タイトルとメッセージを1つのテキストに結合
+    const fullText = `${safeTitle}: ${safeMessage}`;
 
-    const command = `powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -EncodedCommand ${Buffer.from(
-      psScript,
-      "utf16le"
-    ).toString("base64")}`;
+    // デバッグ: PowerShellに渡す内容を確認
+    console.log("🔧 PowerShell Full Text:", fullText);
+
+    // ユーザーの動作確認済みコマンドの形式（ToastText01を使用）
+    const command = `powershell.exe -Command "[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] > \\$null; \\$template = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText01); \\$template.GetElementsByTagName('text')[0].AppendChild(\\$template.CreateTextNode('${fullText}')) > \\$null; \\$toast = [Windows.UI.Notifications.ToastNotification]::new(\\$template); \\$notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('Personal Assistant'); \\$notifier.Show(\\$toast)"`;
 
     exec(command, { timeout: 5000 }, (error, stdout, stderr) => {
       // 結果は無視（Toast通知はベストエフォート）
       if (!error) {
-        console.log("✨ Toast notification sent using working PowerShell method");
+        console.log("✨ Toast notification sent successfully");
+      } else {
+        console.log("⚠️ Toast notification error:", error.message);
+      }
+      if (stderr) {
+        console.log("⚠️ Toast notification stderr:", stderr);
       }
     });
   }
@@ -134,7 +128,7 @@ if (Get-Module -ListAvailable -Name BurntToast) {
   }
 
   /**
-   * PowerShell用の文字列サニタイズ（日本語保持）
+   * PowerShell用の文字列サニタイズ（日本語保持・Toast対応）
    */
   sanitizeForPowerShell(str) {
     return str
@@ -142,8 +136,8 @@ if (Get-Module -ListAvailable -Name BurntToast) {
       .replace(/"/g, '""') // ダブルクォートをエスケープ
       .replace(/\$/g, "`$") // ドル記号をエスケープ
       .replace(/`/g, "``") // バッククォートをエスケープ
-      .replace(/\n/g, " ") // 改行をスペースに
       .replace(/\r/g, "") // キャリッジリターンを削除
+      .replace(/\n/g, " ") // 改行をスペースに変換（Toast表示のため）
       .substring(0, 200); // 長さ制限
   }
 
@@ -171,6 +165,7 @@ if (Get-Module -ListAvailable -Name BurntToast) {
    * @param {number} summary.cybozu - Cybozuタスク数
    * @param {number} summary.gmail - Gmailタスク数
    * @param {number} summary.asana - Asanaタスク数
+   * @param {Object} summary.errors - エラー情報
    */
   notifyTaskUpdate(summary) {
     if (!this.isEnabled) {
@@ -178,20 +173,45 @@ if (Get-Module -ListAvailable -Name BurntToast) {
       return;
     }
 
-    const { total, cybozu = 0, gmail = 0, asana = 0 } = summary;
+    // デバッグ: summaryの内容を確認
+    console.log("🔍 Notification Summary:", JSON.stringify(summary, null, 2));
 
-    // 通知メッセージを構築
+    const { total, cybozu = 0, gmail = 0, asana = 0, errors = {} } = summary;
+
+    // 各サービスの状態を構築（エラーがある場合は❌表示）
     const services = [];
-    if (cybozu > 0) services.push(`Cybozu: ${cybozu}`);
-    if (gmail > 0) services.push(`Gmail: ${gmail}`);
-    if (asana > 0) services.push(`Asana: ${asana}`);
 
-    const message =
-      services.length > 0
-        ? `📋 総タスク数: ${total}件\n${services.join(", ")}`
-        : `📋 総タスク数: ${total}件\n新しいタスクはありません`;
+    // Cybozu
+    if (errors.cybozu) {
+      services.push(`Cybozu: ❌`);
+    } else if (cybozu > 0) {
+      services.push(`Cybozu: ${cybozu}件`);
+    } else {
+      services.push(`Cybozu: 0件`);
+    }
 
-    const title = "My Personal Assistant - タスク更新完了";
+    // Gmail
+    if (errors.gmail) {
+      services.push(`Gmail: ❌`);
+    } else if (gmail > 0) {
+      services.push(`Gmail: ${gmail}件`);
+    } else {
+      services.push(`Gmail: 0件`);
+    }
+
+    // Asana
+    if (errors.asana) {
+      services.push(`Asana: ❌`);
+    } else if (asana > 0) {
+      services.push(`Asana: ${asana}件`);
+    } else {
+      services.push(`Asana: 0件`);
+    }
+
+    const message = `📋 総タスク数: ${total}件\n${services.join(" | ")}`;
+    const title = "Personal Assistant - 更新完了";
+
+    console.log("📢 Notification Message:", message);
 
     if (this.isWSL) {
       console.log("🐧 WSL環境でWindows通知を送信中...");
@@ -227,63 +247,33 @@ if (Get-Module -ListAvailable -Name BurntToast) {
   }
 
   /**
-   * エラー通知を送信
+   * エラー通知を送信（ログのみ、通知なし）
    * @param {string} service - サービス名
    * @param {string} error - エラーメッセージ
    */
   notifyError(service, error) {
-    if (!this.isEnabled) return;
+    // エラーはコンソールログのみ（デスクトップ通知は送信しない）
+    console.error(`❌ ${service} Error:`, error);
 
-    const title = `My Personal Assistant - ${service} エラー`;
-    const message = `⚠️ ${service}でエラーが発生しました\n${error}`;
+    // エラー情報をログファイルに記録
+    const fs = require("fs");
+    const logPath = "/tmp/personal-assistant-errors.log";
+    const logEntry = `${new Date().toISOString()} [ERROR] ${service}: ${error}\n`;
 
-    if (this.isWSL) {
-      this.sendWSLNotification(title, message, "error");
-    } else {
-      try {
-        notifier.notify({
-          title: title,
-          message: message,
-          icon: path.join(__dirname, "../assets/error-icon.png"),
-          sound: true,
-          timeout: 10,
-          type: "error",
-        });
-      } catch (notifyError) {
-        console.error(
-          "❌ Failed to send error notification:",
-          notifyError.message
-        );
-        this.fallbackNotification(title, message);
-      }
+    try {
+      fs.appendFileSync(logPath, logEntry, "utf8");
+    } catch (logError) {
+      console.log("⚠️ Could not write error log:", logError.message);
     }
   }
 
   /**
-   * 成功通知を送信
+   * 成功通知を送信（ログのみ、通知なし）
    * @param {string} message - 成功メッセージ
    */
   notifySuccess(message) {
-    if (!this.isEnabled) return;
-
-    const title = "My Personal Assistant";
-    const fullMessage = `✅ ${message}`;
-
-    if (this.isWSL) {
-      this.sendWSLNotification(title, fullMessage);
-    } else {
-      try {
-        notifier.notify({
-          title: title,
-          message: fullMessage,
-          sound: false,
-          timeout: 3,
-        });
-      } catch (error) {
-        console.error("❌ Failed to send success notification:", error.message);
-        this.fallbackNotification(title, fullMessage);
-      }
-    }
+    // 成功はコンソールログのみ（デスクトップ通知は送信しない）
+    console.log(`✅ ${message}`);
   }
 
   /**

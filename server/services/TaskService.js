@@ -54,12 +54,18 @@ class TaskService {
       }, {})
     );
 
-    // デスクトップ通知を送信
+    // デスクトップ通知を送信（エラー情報も含める）
+    const errorsByService = {};
+    errors.forEach((error) => {
+      errorsByService[error.service] = error.error;
+    });
+
     NotificationService.notifyTaskUpdate({
       total: tasks.length,
       cybozu: serviceCounts.cybozu,
       gmail: serviceCounts.gmail,
       asana: serviceCounts.asana,
+      errors: errorsByService,
     });
 
     // Sort tasks by priority and due date
