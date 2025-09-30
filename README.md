@@ -77,19 +77,37 @@ npm run docker:clean     # 完全クリーンアップ
 
 #### インストール・起動
 ```bash
-# 1. 依存関係インストール
-npm install
+# 1. リポジトリをクローン
+git clone https://github.com/git-tkc/self-assistant.git
+cd self-assistant
 
-# 2. 環境変数設定
+# 2. 全ての依存関係をインストール（ルート + クライアント）
+npm run install:all
+
+# 3. 環境変数設定
 cp .env.example .env
 # .envファイルを編集して実際の認証情報を入力
 
-# 3. 開発サーバー起動
+# 4. 開発サーバー起動
 npm run dev
 
 # アクセス
 # フロントエンド: http://localhost:3000
 # バックエンドAPI: http://localhost:5000
+```
+
+#### 既存の方法（段階的）
+```bash
+# ルートフォルダで
+npm ci
+
+# クライアントフォルダで
+cd client
+npm ci
+cd ..
+
+# 開発サーバー起動
+npm run dev
 ```
 
 ### 前提条件

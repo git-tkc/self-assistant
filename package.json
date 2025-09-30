@@ -4,6 +4,7 @@
   "description": "Multi-service task integration dashboard for Cybozu, Gmail, and Asana",
   "main": "server/index.js",
   "scripts": {
+    "install:all": "npm ci && cd client && npm ci && cd ..",
     "dev": "concurrently \"npm run server:dev\" \"npm run client:dev\"",
     "build": "npm run client:build",
     "start": "node server/index.js",
