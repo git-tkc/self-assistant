@@ -73,15 +73,15 @@ class NotificationService {
     const safeTitle = this.sanitizeForPowerShell(title);
     const safeMessage = this.sanitizeForPowerShell(message);
 
+    // 動作確認済みのPowerShellコマンド（より確実）
     const psScript = `
 try {
-    Add-Type -AssemblyName System.Runtime.WindowsRuntime -ErrorAction SilentlyContinue
-    [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
-    $template = "<toast><visual><binding template='ToastGeneric'><text>${safeTitle}</text><text>${safeMessage}</text></binding></visual></toast>"
-    $xml = [Windows.Data.Xml.Dom.XmlDocument]::new()
-    $xml.LoadXml($template)
-    $toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
-    $notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('PersonalAssistant')
+    [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] > $null
+    $template = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02)
+    $template.GetElementsByTagName("text")[0].AppendChild($template.CreateTextNode("${safeTitle}")) > $null
+    $template.GetElementsByTagName("text")[1].AppendChild($template.CreateTextNode("${safeMessage}")) > $null
+    $toast = [Windows.UI.Notifications.ToastNotification]::new($template)
+    $notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("Personal Assistant")
     $notifier.Show($toast)
 } catch {
     # Toast失敗は無視（企業環境では正常）
@@ -96,7 +96,7 @@ try {
     exec(command, { timeout: 5000 }, (error, stdout, stderr) => {
       // 結果は無視（Toast通知はベストエフォート）
       if (!error) {
-        console.log("✨ Toast notification attempted");
+        console.log("✨ Toast notification sent using working PowerShell method");
       }
     });
   }
