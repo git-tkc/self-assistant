@@ -79,19 +79,16 @@ class NotificationService {
     // デバッグ: PowerShellに渡す内容を確認
     console.log("🔧 PowerShell Full Text:", fullText);
 
-    // ユーザーの動作確認済みコマンドの形式（ToastText01を使用）
-    const command = `powershell.exe -Command "[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] > \\$null; \\$template = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText01); \\$template.GetElementsByTagName('text')[0].AppendChild(\\$template.CreateTextNode('${fullText}')) > \\$null; \\$toast = [Windows.UI.Notifications.ToastNotification]::new(\\$template); \\$notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('Personal Assistant'); \\$notifier.Show(\\$toast)"`;
+    // ユーザーの動作確認済みコマンドの形式（配列アクセス修正版）
+    const command = `powershell.exe -Command "[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] > \\$null; \\$template = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText01); \\$textNodes = \\$template.GetElementsByTagName('text'); \\$textNodes.Item(0).AppendChild(\\$template.CreateTextNode('${fullText}')) > \\$null; \\$toast = [Windows.UI.Notifications.ToastNotification]::new(\\$template); \\$notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('Personal Assistant'); \\$notifier.Show(\\$toast)"`;
 
     exec(command, { timeout: 5000 }, (error, stdout, stderr) => {
-      // 結果は無視（Toast通知はベストエフォート）
       if (!error) {
         console.log("✨ Toast notification sent successfully");
       } else {
         console.log("⚠️ Toast notification error:", error.message);
       }
-      if (stderr) {
-        console.log("⚠️ Toast notification stderr:", stderr);
-      }
+      // stderrログは非表示（エラーでも通知は表示されてるため）
     });
   }
 
